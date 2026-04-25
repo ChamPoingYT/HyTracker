@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' https://visage.surgeplay.com https://crafatar.com data:; script-src 'self' 'unsafe-inline'">
+<title>HyTracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<style>
+/* ── Cloche notification ── */
+.notif-bell-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 4px;
+}
+.notif-bell-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: 7px;
+  color: #7a7090;
+  display: flex;
+  align-items: center;
+  transition: color .2s, background .2s;
+  -webkit-app-region: no-drag;
+}
+.notif-bell-btn:hover { color: #c4b5fd; background: rgba(196,181,253,.08); }
+.notif-bell-btn svg   { width: 15px; height: 15px; }
+
+/* Badge rouge */
+.notif-badge {
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #f87171;
+  border: 1.5px solid #13111a;
+  display: none;
+  pointer-events: none;
+}
+.notif-badge.visible { display: block; }
+
+/* Panneau déroulant */
+.notif-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 272px;
+  background: #1a1726;
+  border: 1px solid #2e2a45;
+  border-radius: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.6);
+  z-index: 9999;
+  overflow: hidden;
+  -webkit-app-region: no-drag;
+}
+.notif-panel.open { display: block; }
+
+.notif-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 13px 9px;
+  border-bottom: 1px solid #242038;
+}
+.notif-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9b8ec4;
+  letter-spacing: .6px;
+  text-transform: uppercase;
+}
+.notif-check-btn {
+  font-size: 11px;
+  color: #6d5fc4;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 7px;
+  border-radius: 5px;
+  font-family: inherit;
+  transition: background .15s, color .15s;
+}
+.notif-check-btn:hover { background: rgba(109,95,196,.15); color: #a99aff; }
+
+/* Item */
+.notif-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 13px;
+}
+.notif-icon {
+  width: 28px; height: 28px;
+  border-radius: 7px;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.notif-icon.checking   { background: rgba(99,102,241,.12); }
+.notif-icon.available  { background: rgba(234,179,8,.12);  }
+.notif-icon.downloading{ background: rgba(59,130,246,.12); }
+.notif-icon.downloaded { background: rgba(34,197,94,.12);  }
+.notif-icon.error      { background: rgba(239,68,68,.12);  }
+.notif-icon.ok         { background: rgba(148,163,184,.08);}
+
+.notif-content  { flex: 1; min-width: 0; }
+.notif-title    { font-size: 12px; font-weight: 600; color: #ddd4ff; margin-bottom: 2px; }
+.notif-desc     { font-size: 11px; color: #7a6ea0; line-height: 1.45; }
+
+.notif-progress-bar {
+  margin-top: 7px;
+  height: 3px;
+  border-radius: 99px;
+  background: #252040;
+  overflow: hidden;
+}
+.notif-progress-fill {
+  height: 100%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #6366f1, #a78bfa);
+  transition: width .35s ease;
+}
+
+.notif-restart-btn {
+  margin-top: 9px;
+  display: inline-block;
+  padding: 5px 13px;
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  color: #fff;
+  background: linear-gradient(135deg, #5f5bd4, #8b5cf6);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity .2s;
+}
+.notif-restart-btn:hover { opacity: .82; }
+
+/* ── Version app dans la sidebar ── */
+#sidebar-version {
+  padding: 10px 14px 14px;
+  font-size: 10px;
+  color: #3d3658;
+  letter-spacing: .3px;
+  user-select: none;
+  flex-shrink: 0;
+}
+</style>
+</head>
+<body>
+<div id="titlebar">
+  <div id="titlebar-left">
+    <div id="logo-mark">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+        <path d="M11 2L3 7v8l8 5 8-5V7L11 2z" fill="url(#lg1)"/>
+        <path d="M11 2L3 7l8 5 8-5-8-5z" fill="url(#lg2)" opacity="0.6"/>
+        <defs>
+          <linearGradient id="lg1" x1="3" y1="2" x2="19" y2="20"><stop offset="0%" stop-color="#c4b5fd"/><stop offset="100%" stop-color="#93c5fd"/></linearGradient>
+          <linearGradient id="lg2" x1="3" y1="2" x2="19" y2="10"><stop offset="0%" stop-color="#e0d7ff"/><stop offset="100%" stop-color="#c4b5fd" stop-opacity="0"/></linearGradient>
+        </defs>
+      </svg>
+    </div>
+    <span id="app-name">HyTracker</span>
+  </div>
+  <div id="titlebar-drag"></div>
+  <div id="titlebar-right">
+    <div id="rate-indicator" title="Requêtes API">
+      <div id="rate-bar-track"><div id="rate-bar-fill"></div></div>
+      <span id="rate-text">0/300</span>
+    </div>
+
+    <!-- ── Cloche notifications update ── -->
+    <div class="notif-bell-wrap" id="notifBellWrap">
+      <button class="notif-bell-btn" id="notifBellBtn" title="Mises à jour">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+      </button>
+      <span class="notif-badge" id="notifBadge"></span>
+      <div class="notif-panel" id="notifPanel">
+        <div class="notif-panel-header">
+          <span class="notif-panel-title">Mises à jour</span>
+          <button class="notif-check-btn" id="notifCheckBtn">↻ Vérifier</button>
+        </div>
+        <div id="notifList"></div>
+      </div>
+    </div>
+
+    <button class="win-btn" onclick="window.hytracker.windowMinimize()"><svg width="12" height="2" viewBox="0 0 12 2"><rect width="12" height="2" rx="1" fill="currentColor"/></svg></button>
+    <button class="win-btn" onclick="window.hytracker.windowMaximize()"><svg width="11" height="11" viewBox="0 0 11 11"><rect x="0.5" y="0.5" width="10" height="10" rx="2.5" stroke="currentColor" stroke-width="1.2" fill="none"/></svg></button>
+    <button class="win-btn" id="btn-close" onclick="window.hytracker.windowClose()"><svg width="11" height="11" viewBox="0 0 11 11"><path d="M1 1l9 9M10 1l-9 9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+  </div>
+</div>
+
+<div id="app-layout">
+  <nav id="sidebar">
+    <div id="nav-items">
+      <button class="nav-item active" data-page="search">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M12.5 12.5L16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span data-label="search">Recherche</span>
+      </button>
+      <button class="nav-item" data-page="compare">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="6" cy="7" r="3.5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="7" r="3.5" stroke="currentColor" stroke-width="1.5"/><path d="M2 16c0-2.5 1.79-4 4-4M10 16c0-2.5 1.79-4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span data-label="compare">Comparaison</span>
+      </button>
+      <button class="nav-item" data-page="favorites">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M9 2l1.8 4H15l-3.4 2.5 1.3 4L9 10.2 5.1 12.5l1.3-4L3 6h4.2L9 2z" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+        <span data-label="favorites">Favoris</span>
+      </button>
+      <button class="nav-item" data-page="leaderboard">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="10" width="3" height="5" stroke="currentColor" stroke-width="1.5" rx="0.5"/><rect x="7.5" y="6" width="3" height="9" stroke="currentColor" stroke-width="1.5" rx="0.5"/><rect x="13" y="3" width="3" height="12" stroke="currentColor" stroke-width="1.5" rx="0.5"/></svg>
+        <span data-label="leaderboard">Classement</span>
+      </button>
+      <button class="nav-item" data-page="settings">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="9" cy="9" r="2.5" stroke="currentColor" stroke-width="1.5"/><path d="M9 1v2M9 15v2M1 9h2M15 9h2M3.1 3.1l1.4 1.4M13.5 13.5l1.4 1.4M14.9 3.1l-1.4 1.4M4.5 13.5l-1.4 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <span data-label="settings">Paramètres</span>
+      </button>
+    </div>
+    <div id="sidebar-favs" class="hidden">
+      <div class="sidebar-section-label">Favoris</div>
+      <div id="sidebar-fav-list"></div>
+    </div>
+
+    <!-- Version app en bas de la sidebar -->
+    <div id="sidebar-version">v—</div>
+  </nav>
+
+  <main id="main-content">
+    <!-- SEARCH -->
+    <section id="page-search" class="page active">
+      <div id="search-hero">
+        <div id="search-glow"></div>
+        <h1 id="search-title">Rechercher un joueur</h1>
+        <p id="search-sub">Stats complètes · BedWars · SkyWars · Duels · et plus</p>
+        <div id="search-bar-wrap">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 18 18" fill="none"><circle cx="8" cy="8" r="5.5" stroke="currentColor" stroke-width="1.5"/><path d="M12.5 12.5L16 16" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <input id="search-input" type="text" placeholder="Pseudo Minecraft…" autocomplete="off" spellcheck="false">
+          <button id="search-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8h10M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <div id="search-error" class="hidden"></div>
+        <div id="search-empty-hint">
+          <div class="search-hint-grid">
+            <div class="search-hint-item">
+              <div class="search-hint-icon">⚔️</div>
+              <div class="search-hint-text">Stats BedWars, SkyWars, Duels, Pit et plus</div>
+            </div>
+            <div class="search-hint-item">
+              <div class="search-hint-icon">📈</div>
+              <div class="search-hint-text">Tendances et graphiques dans chaque mode</div>
+            </div>
+            <div class="search-hint-item">
+              <div class="search-hint-icon">🧰</div>
+              <div class="search-hint-text">Kit Mastery SkyWars intégré</div>
+            </div>
+            <div class="search-hint-item">
+              <div class="search-hint-icon">🏆</div>
+              <div class="search-hint-text">Classement parmi tes favoris</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="player-card" class="hidden">
+        <div id="player-header">
+          <div id="player-skin-wrap">
+            <img id="player-skin-3d" src="" alt="skin 3D" draggable="false">
+          </div>
+          <div id="player-info">
+            <div id="player-name-wrap">
+              <span id="player-rank-badge"></span>
+              <h2 id="player-name"></h2>
+              <span id="player-level-badge"></span>
+            </div>
+            <div id="player-meta-row">
+              <span id="player-online-dot"></span>
+              <span id="player-status-text"></span>
+            </div>
+            <div id="player-details-row"></div>
+          </div>
+          <div id="player-actions">
+            <button id="btn-add-fav" class="pill-btn">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1.5l1.4 3.1H12l-2.7 2 1 3.1L7 8 3.7 9.7l1-3.1L2 4.6h3.6L7 1.5z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
+              Favori
+            </button>
+            <button id="btn-add-compare" class="pill-btn">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 7h10M8 3l4 4-4 4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Comparer
+            </button>
+          </div>
+        </div>
+
+        <div id="stats-tabs">
+          <button class="stats-tab active" data-tab="bedwars"><span class="tab-dot bw"></span>BedWars</button>
+          <button class="stats-tab" data-tab="skywars"><span class="tab-dot sw"></span>SkyWars</button>
+          <button class="stats-tab" data-tab="duels"><span class="tab-dot du"></span>Duels</button>
+          <button class="stats-tab" data-tab="murder"><span class="tab-dot mu"></span>Murder</button>
+          <button class="stats-tab" data-tab="build"><span class="tab-dot bb"></span>Build Battle</button>
+          <button class="stats-tab" data-tab="pit"><span class="tab-dot pt"></span>Pit</button>
+          <button class="stats-tab" data-tab="blitz"><span class="tab-dot bz"></span>Blitz SG</button>
+          <button class="stats-tab" data-tab="tnt"><span class="tab-dot tn"></span>TNT Games</button>
+          <button class="stats-tab" data-tab="recent"><span class="tab-dot rc"></span>Récent</button>
+          <button class="stats-tab" data-tab="comparison"><span class="tab-dot cmp"></span>Session</button>
+          <button class="stats-tab" data-tab="gradeanalysis"><span class="tab-dot ga"></span>Profil</button>
+        </div>
+
+        <div id="stats-content">
+          <div class="tab-panel active" id="tab-bedwars"></div>
+          <div class="tab-panel" id="tab-skywars"></div>
+          <div class="tab-panel" id="tab-duels"></div>
+          <div class="tab-panel" id="tab-murder"></div>
+          <div class="tab-panel" id="tab-build"></div>
+          <div class="tab-panel" id="tab-pit"></div>
+          <div class="tab-panel" id="tab-blitz"></div>
+          <div class="tab-panel" id="tab-tnt"></div>
+          <div class="tab-panel" id="tab-recent"><div class="loading-spin">Chargement…</div></div>
+          <div class="tab-panel" id="tab-comparison"></div>
+          <div class="tab-panel" id="tab-gradeanalysis"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- COMPARE -->
+    <section id="page-compare" class="page">
+      <div class="page-header"><h2>Comparaison</h2><p class="page-sub">Jusqu'à 4 joueurs côte à côte</p></div>
+      <div id="compare-inputs">
+        <div id="compare-input-row"></div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button id="compare-add-btn" class="pill-btn">+ Ajouter</button>
+          <button id="compare-go-btn" class="accent-btn">Comparer</button>
+        </div>
+      </div>
+      <div id="compare-results"></div>
+    </section>
+
+    <!-- FAVORITES -->
+    <section id="page-favorites" class="page">
+      <div class="page-header"><h2>Favoris</h2><p class="page-sub">Tes joueurs enregistrés</p></div>
+      <div id="favorites-grid"></div>
+    </section>
+
+    <!-- LEADERBOARD -->
+    <section id="page-leaderboard" class="page">
+      <div class="page-header"><h2>Classement</h2><p class="page-sub">Meilleurs joueurs par mode</p></div>
+      <div id="leaderboard-body">
+        <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+          <button class="leaderboard-filter active" data-game="bedwars">BedWars</button>
+          <button class="leaderboard-filter" data-game="skywars">SkyWars</button>
+          <button class="leaderboard-filter" data-game="duels">Duels</button>
+          <button class="leaderboard-filter" data-game="overall">Tous les modes</button>
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap">
+          <button class="leaderboard-metric active" data-metric="fkdr">FKDR</button>
+          <button class="leaderboard-metric" data-metric="wl">W/L</button>
+          <button class="leaderboard-metric" data-metric="kd">K/D</button>
+          <button class="leaderboard-metric" data-metric="wins">Victoires</button>
+        </div>
+        <div id="leaderboard-list" style="display:flex;flex-direction:column;gap:8px">
+          <div style="text-align:center;color:#999;padding:40px">Aucun classement disponible. Cherche des joueurs d'abord.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="page-settings" class="page">
+      <div class="page-header"><h2>Paramètres</h2></div>
+      <div id="settings-body">
+        <div class="settings-card">
+          <div class="settings-label">Langue / Language</div>
+          <div style="display:flex;gap:10px">
+            <button id="btn-lang-fr" class="pill-btn active">Français</button>
+            <button id="btn-lang-en" class="pill-btn">English</button>
+          </div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-label" id="label-api">Clé API Hypixel</div>
+          <div class="settings-desc" id="desc-api">Obtiens ta clé sur <a href="#" id="link-dev" class="hy-link">developer.hypixel.net</a></div>
+          <div class="settings-input-row">
+            <input id="api-key-input" type="password" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" spellcheck="false" autocomplete="off">
+            <button id="btn-toggle-key" class="pill-btn">Afficher</button>
+            <button id="btn-save-key" class="accent-btn">Sauvegarder</button>
+          </div>
+          <div id="key-status" class="hidden"></div>
+        </div>
+        <div class="settings-card">
+          <div class="settings-label" id="label-rate">Utilisation de l'API</div>
+          <div class="settings-desc" id="desc-rate">300 requêtes par fenêtre de 5 minutes</div>
+          <div id="rate-detail-bar"><div id="rate-detail-fill"></div></div>
+          <div id="rate-detail-text"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+<script>
+// ── Auto-updater UI ───────────────────────────────────────────────────────────
+(function () {
+  const bellBtn  = document.getElementById('notifBellBtn');
+  const badge    = document.getElementById('notifBadge');
+  const panel    = document.getElementById('notifPanel');
+  const list     = document.getElementById('notifList');
+  const checkBtn = document.getElementById('notifCheckBtn');
+  const versionEl= document.getElementById('sidebar-version');
+
+  let panelOpen = false;
+
+  // Affiche la version dès le démarrage
+  window.hytracker.getAppVersion().then(v => {
+    if (versionEl) versionEl.textContent = 'v' + v;
+  }).catch(() => {});
+
+  // Toggle panneau
+  bellBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    panelOpen = !panelOpen;
+    panel.classList.toggle('open', panelOpen);
+    if (panelOpen) badge.classList.remove('visible');
+  });
+  document.addEventListener('click', (e) => {
+    if (panelOpen && !panel.contains(e.target) && e.target !== bellBtn) {
+      panelOpen = false;
+      panel.classList.remove('open');
+    }
+  });
+
+  // Vérification manuelle
+  checkBtn.addEventListener('click', () => {
+    window.hytracker.checkForUpdates();
+    render({ status: 'checking' });
+  });
+
+  // Rendu du panneau
+  function render(state) {
+    list.innerHTML = '';
+    let iconClass, emoji, title, desc, extra = '';
+
+    switch (state.status) {
+      case 'checking':
+        iconClass = 'checking'; emoji = '🔍';
+        title = 'Vérification…';
+        desc  = 'Recherche de nouvelles versions en cours.';
+        break;
+      case 'available':
+        iconClass = 'available'; emoji = '⬇️';
+        title = `v${state.version} disponible`;
+        desc  = 'Téléchargement automatique en cours…';
+        badge.classList.add('visible');
+        break;
+      case 'downloading':
+        iconClass = 'downloading'; emoji = '📦';
+        title = `Téléchargement… ${state.percent}%`;
+        desc  = fmt(state.transferred) + ' / ' + fmt(state.total) + '  •  ' + fmt(state.bytesPerSecond) + '/s';
+        extra = `<div class="notif-progress-bar"><div class="notif-progress-fill" style="width:${state.percent}%"></div></div>`;
+        badge.classList.add('visible');
+        break;
+      case 'downloaded':
+        iconClass = 'downloaded'; emoji = '✅';
+        title = `v${state.version} prête !`;
+        desc  = 'Redémarre l\'application pour appliquer la mise à jour.';
+        extra = `<button class="notif-restart-btn" id="restartBtn">Redémarrer maintenant</button>`;
+        badge.classList.add('visible');
+        // Ouvre le panneau automatiquement
+        panelOpen = true;
+        panel.classList.add('open');
+        break;
+      case 'not-available':
+        iconClass = 'ok'; emoji = '✓';
+        title = 'À jour';
+        desc  = `Tu utilises déjà la dernière version.`;
+        badge.classList.remove('visible');
+        break;
+      case 'error':
+        iconClass = 'error'; emoji = '⚠️';
+        title = 'Erreur de mise à jour';
+        desc  = state.message || 'Une erreur est survenue.';
+        break;
+      default:
+        iconClass = 'ok'; emoji = '🔔';
+        title = 'Notifications';
+        desc  = 'Clique sur ↻ pour vérifier les mises à jour.';
+    }
+
+    const item = document.createElement('div');
+    item.className = 'notif-item';
+    item.innerHTML = `
+      <div class="notif-icon ${iconClass}">${emoji}</div>
+      <div class="notif-content">
+        <div class="notif-title">${title}</div>
+        <div class="notif-desc">${desc}</div>
+        ${extra}
+      </div>`;
+    list.appendChild(item);
+
+    const restartBtn = document.getElementById('restartBtn');
+    if (restartBtn) {
+      restartBtn.addEventListener('click', () => window.hytracker.installUpdate());
+    }
+  }
+
+  // Écoute les events du main process
+  window.hytracker.onUpdateStatus((state) => {
+    render(state);
+    if (state.status === 'available') {
+      panelOpen = true;
+      panel.classList.add('open');
+    }
+  });
+
+  function fmt(bytes) {
+    if (!bytes || bytes < 0) return '0 B';
+    if (bytes < 1024)     return bytes + ' B';
+    if (bytes < 1048576)  return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+  }
+
+  // État initial
+  render({ status: 'idle' });
+})();
+</script>
+</body>
+</html>
